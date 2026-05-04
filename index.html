@@ -5,44 +5,137 @@
     <style>
       body { margin: 0; padding-bottom: 3rem; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
 
+      #topbar { position: fixed; top: 0; left: 0; right: 0; display: flex; gap: 0.5rem; align-items: center; padding: 0.5rem; box-sizing: border-box; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px); border-bottom: 1px solid rgba(0,0,0,0.08); }
+      #status { font-size: 0.9rem; opacity: 0.85; }
+      #whoami { font-size: 0.9rem; opacity: 0.85; margin-left: auto; }
+      #topbar button { background: #333; border: none; padding: 0.4rem 0.75rem; border-radius: 6px; outline: none; color: #fff; cursor: pointer; }
+      #topbar button[disabled] { opacity: 0.5; cursor: not-allowed; }
+
       #form { background: rgba(0, 0, 0, 0.15); padding: 0.25rem; position: fixed; bottom: 0; left: 0; right: 0; display: flex; height: 3rem; box-sizing: border-box; backdrop-filter: blur(10px); }
       #input { border: none; padding: 0 1rem; flex-grow: 1; border-radius: 2rem; margin: 0.25rem; }
       #input:focus { outline: none; }
       #form > button { background: #333; border: none; padding: 0 1rem; margin: 0.25rem; border-radius: 3px; outline: none; color: #fff; }
+      #form > button[disabled] { opacity: 0.5; cursor: not-allowed; }
 
-      #messages { list-style-type: none; margin: 0; padding: 0; }
+      #messages { list-style-type: none; margin: 0; padding: 3.25rem 0 0 0; }
       #messages > li { padding: 0.5rem 1rem; }
       #messages > li:nth-child(odd) { background: #efefef; }
+      .system { font-style: italic; opacity: 0.8; }
     </style>
   </head>
   <body>
+    <div id="topbar">
+      <span id="status">Desconectado</span>
+      <button id="connect" type="button">Conectar</button>
+      <button id="disconnect" type="button" disabled>Desconectar</button>
+      <span id="whoami"></span>
+    </div>
     <ul id="messages"></ul>
     <form id="form" action="">
-      <input id="input" autocomplete="off" /><button>Send</button>
+      <input id="input" autocomplete="off" disabled /><button id="send" disabled>Send</button>
     </form>
     <script src="/socket.io/socket.io.js"></script>
 
     <script>
-      var socket = io();
+      var socket = null;
+      var isConnected = false;
 
       var messages = document.getElementById('messages');
       var form = document.getElementById('form');
       var input = document.getElementById('input');
+      var statusEl = document.getElementById('status');
+      var connectBtn = document.getElementById('connect');
+      var disconnectBtn = document.getElementById('disconnect');
+      var whoamiEl = document.getElementById('whoami');
+      var sendBtn = document.getElementById('send');
+
+      function setUiConnected(connected) {
+        isConnected = connected;
+        input.disabled = !connected;
+        sendBtn.disabled = !connected;
+        disconnectBtn.disabled = !connected;
+        connectBtn.disabled = connected;
+        statusEl.textContent = connected ? 'Conectado' : 'Desconectado';
+      }
+
+      function addSystemMessage(text) {
+        var item = document.createElement('li');
+        item.textContent = text;
+        item.className = 'system';
+        messages.appendChild(item);
+        window.scrollTo(0, document.body.scrollHeight);
+      }
+
+      function addChatMessage(payload) {
+        var item = document.createElement('li');
+        if (payload && typeof payload === 'object') {
+          var u = payload.username || 'Anon';
+          item.textContent = u + ': ' + (payload.text || '');
+        } else {
+          item.textContent = String(payload);
+        }
+        messages.appendChild(item);
+        window.scrollTo(0, document.body.scrollHeight);
+      }
+
+      function connectSocket() {
+        if (socket && socket.connected) return;
+
+        socket = io();
+
+        socket.on('connect', function () {
+          setUiConnected(true);
+
+          var username = localStorage.getItem('chat_username');
+          if (!username) {
+            username = prompt('Tu nombre (opcional):') || '';
+            username = username.trim().slice(0, 24);
+            localStorage.setItem('chat_username', username);
+          }
+          if (username) socket.emit('set username', username);
+        });
+
+        socket.on('disconnect', function () {
+          setUiConnected(false);
+          addSystemMessage('Socket desconectado');
+        });
+
+        socket.on('connect_error', function () {
+          setUiConnected(false);
+          addSystemMessage('Error de conexión');
+        });
+
+        socket.on('system message', function (payload) {
+          if (payload && payload.type === 'identity' && payload.username) {
+            whoamiEl.textContent = payload.username;
+          }
+          if (payload && payload.text) addSystemMessage(payload.text);
+        });
+
+        socket.on('chat message', function (payload) {
+          addChatMessage(payload);
+        });
+      }
+
+      function disconnectSocket() {
+        if (!socket) return;
+        socket.disconnect();
+      }
+
+      connectBtn.addEventListener('click', connectSocket);
+      disconnectBtn.addEventListener('click', disconnectSocket);
 
       form.addEventListener('submit', function(e) {
         e.preventDefault();
+        if (!socket || !socket.connected) return;
         if (input.value) {
           socket.emit('chat message', input.value);
           input.value = '';
         }
       });
 
-      socket.on('chat message', function(msg) {
-        var item = document.createElement('li');
-        item.textContent = msg;
-        messages.appendChild(item);
-        window.scrollTo(0, document.body.scrollHeight);
-      });
+      // default state: disconnected; user must click connect
+      setUiConnected(false);
     </script>
   </body>
 </html>
