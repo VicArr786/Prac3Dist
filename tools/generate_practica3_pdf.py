@@ -1,6 +1,5 @@
 import re
 from pathlib import Path
-from datetime import datetime
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -70,13 +69,9 @@ def build_story(md: str):
     story.append(Paragraph("PRÁCTICA 3: Sockets – GRUPAL", title))
     story.append(Spacer(1, 0.15 * cm))
 
-    generated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
     header_data = [
         [Paragraph("<b>Asignatura:</b>", small), Paragraph("Programación de Sistemas Distribuidos", small)],
-        [Paragraph("<b>Curso:</b>", small), Paragraph("2023/2024", small)],
-        [Paragraph("<b>Fecha:</b>", small), Paragraph("12-04-2024", small)],
         [Paragraph("<b>Semestre:</b>", small), Paragraph("2º", small)],
-        [Paragraph("<b>Generado:</b>", small), Paragraph(generated_at, small)],
     ]
     header_tbl = Table(header_data, colWidths=[3.2 * cm, 12.5 * cm])
     header_tbl.setStyle(
